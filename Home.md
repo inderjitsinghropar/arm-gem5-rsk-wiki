@@ -41,15 +41,16 @@ $ ./build/ARM/gem5.opt configs/example/arm/starter_se.py --cpu="minor" --num-cor
 
 ### FS Simulation
 
-##### Get Arm full system disk image and set `$M5_PATH`:
+##### Get an Arm full system disk image from the [gem5 downloads page](https://www.gem5.org/documentation/general_docs/fullsystem/guest_binaries), and set `$M5_PATH`:
+>###### **Note**: the download URLs and filenames below are examples, and may change as new binaries are released by the gem5 project. Please also use a suitable `$M5_PATH` of your choice.
 ```bash
-$ wget http://www.gem5.org/dist/current/arm/aarch-system-20170616.tar.xz
-$ tar xvfJ aarch-system-20170616.tar.xz
-```
->###### **Note**: set the /path_to_aarch-system-20170616_dir/
-```bash
-$ echo "export M5_PATH=/path_to_aarch-system-20170616_dir/" >> ~/.bashrc 
-$ source ~/.bashrc
+$ export M5_PATH="${PWD}/../m5_binaries"
+$ mkdir -p "${M5_PATH}"
+$ wget -P "${M5_PATH}" http://dist.gem5.org/dist/current/arm/aarch-system-201901106.tar.bz2
+$ tar -xjf "${M5_PATH}/aarch-system-201901106.tar.bz2" -C "${M5_PATH}"
+$ wget -P "${M5_PATH}/disks" http://dist.gem5.org/dist/current/arm/disks/linaro-minimal-aarch64.img.bz2
+$ bunzip2 "${M5_PATH}/disks/linaro-minimal-aarch64.img.bz2"
+$ echo "export M5_PATH=${M5_PATH}" >> ~/.bashrc
 ```
 
 ##### Run simple FS:
@@ -68,8 +69,16 @@ $ telnet localhost 3456
 $ m5 checkpoint
 ```
 
+>###### **Note**: `3456` is the default port number used by the gem5 simulator. If this does not work, the correct port number can be found in the gem5 output:
+
+```
+system.terminal: Listening for connections on port 3456
+```
+
+A more modern alternative is to use the [m5term](https://www.gem5.org/documentation/general_docs/fullsystem/m5term) utility provided with gem5.
+
 ##### Restore from a checkpoint:
->###### **Note**: Arm `starter_fs.py` allows to specify checkpoints with `--restore=m5out/cpt.TICKNUMBER/`
+>###### **Note**: Arm `starter_fs.py` allows you to specify checkpoints with `--restore=m5out/cpt.TICKNUMBER/`. Make sure the `--num-cores` and `--disk-image` arguments are the same as the original simulation; the `--cpu` type may be changed.
 ```bash
 $ ./build/ARM/gem5.opt configs/example/arm/starter_fs.py --restore=m5out/cpt.TICKNUMBER/ --cpu="minor" --num-cores=1 --disk-image=$M5_PATH/disks/linaro-minimal-aarch64.img
 ```
@@ -87,17 +96,17 @@ $ svn export https://llvm.org/svn/llvm-project/test-suite/tags/RELEASE_390/final
 
 ##### Install the Arm cross compiler toolchain:
 ```bash
-$ sudo apt-get install gcc-arm-linux-gnueabihf
+$ sudo apt-get install gcc-aarch64-linux-gnu
 ```
 
 ##### Replace `se-benchmarks/Makefile` with the code below and then `make`:
->###### **Note**: replace whitespaces with tabs in your `Makefile`
+>###### **Note**: replace indentation whitespaces with tabs in your `Makefile`
 ```bash
 SRCS = $(wildcard *.c)
 PROGS = $(patsubst %.c,%,$(SRCS))
 all: $(PROGS)
 %: %.c
-      arm-linux-gnueabihf-gcc --static $< -o $@
+      aarch64-linux-gnu-gcc --static $< -o $@
 clean:
       rm -f $(PROGS)
 ```
@@ -105,10 +114,17 @@ clean:
 ## Run LLVM test-suite 
 
 ##### Run LLVM test-suite on HPI:
->###### **Note**: set `<benchmark>` and `/path_to_benchmark/`
+>###### **Note**: set `<benchmark>` and `/path_to_benchmark`
 ```bash
-$ ./build/ARM/gem5.opt -d se_results/<benchmark> configs/example/arm/starter_se.py --cpu="hpi" /path_to_benchmark/
+$ ./build/ARM/gem5.opt -d se_results/<benchmark> configs/example/arm/starter_se.py --cpu="hpi" /path_to_benchmark
 ```
+
+>###### For example, to run the `Bubblesort` benchmark, run the following command:
+```bash
+$ ./build/ARM/gem5.opt -d se_results/Bubblesort configs/example/arm/starter_se.py --cpu="hpi" /path_to/se-benchmarks/Bubblesort
+```
+
+>###### **Note**: some of the benchmarks may take a very long time to run.
 
 ### Read results of SE runs
 To compare the benchmarks, we first need to create a simple configuration file and specify a list of benchmarks to be compared, comparison parameters and an output file. Then, we just pass this configuration file to the `read_results.sh` bash script.
@@ -177,8 +193,8 @@ $ find . -name "config.sub" -type f -print -execdir cp /absolute_path_to_tmp/con
 
 ##### Get the `aarch64-linux-gnu` toolchain:
 ```bash
-$ wget https://releases.linaro.org/components/toolchain/binaries/latest-5/aarch64-linux-gnu/gcc-linaro-5.4.1-2017.05-x86_64_aarch64-linux-gnu.tar.xz
-$ tar xvfJ gcc-linaro-5.4.1-2017.05-x86_64_aarch64-linux-gnu.tar.xz
+$ wget https://releases.linaro.org/components/toolchain/binaries/latest-5/aarch64-linux-gnu/gcc-linaro-5.5.0-2017.10-x86_64_aarch64-linux-gnu.tar.xz
+$ tar xvfJ gcc-linaro-5.5.0-2017.10-x86_64_aarch64-linux-gnu.tar.xz
 ```
 
 ##### From the `parsec-3.0` directory, apply `xcompile-patch.diff`:
@@ -204,14 +220,14 @@ $ patch -p1 < ../arm-gem5-rsk/parsec_patches/qemu-patch.diff
 
 ##### Resolve dependencies
 ```bash
-$ sudo apt-get install libglib2.0 libpixman-1-dev libfdt-dev libcap-dev libattr1-dev
+$ sudo apt-get install libglib2.0 libpixman-1-dev libfdt-dev libcap-dev libattr1-dev libcap-ng-dev
 ```
 
 ##### Clone and make QEMU:
 ```bash
 $ git clone git://git.qemu.org/qemu.git qemu
 $ cd qemu
-$ ./configure --target-list=aarch64-softmmu
+$ ./configure --target-list=aarch64-softmmu --enable-virtfs
 $ make
 ```
 
@@ -247,21 +263,36 @@ To run PARSEC benchmarks on Arm, we need to enlarge the disk image and copy the 
 
 ### Copy PARSEC to Disk Image
 
-##### Expand the disk image:
+##### Expand and resize the disk image:
 ```bash
 $ cp linaro-minimal-aarch64.img expanded-linaro-minimal-aarch64.img
 $ dd if=/dev/zero bs=1G count=20 >> ./expanded-linaro-minimal-aarch64.img # add 20G zeros
 $ sudo parted expanded-linaro-minimal-aarch64.img resizepart 1 100% # grow partition 1
 ```
 
-##### Mount the expanded disk image, resize it, and copy PARSEC to it:
->###### **Note**: set `/path_to_compiled_parsec-3.0_dir/`
+##### Mount the expanded disk image, resize the filesystem, and copy PARSEC to it:
+
+###### In order to mount the disk image, we must calculate the offset of the first partition.
+###### Run `fdisk` to find the start offset (in sectors) and the sector size (in bytes) of the partition.
+```bash
+$ fdisk -l expanded-linaro-minimal-aarch64.img
+Disk expanded-linaro-minimal-aarch64.img: 21 GiB, 22548316160 bytes, 44039680 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x3e7a980d
+
+Device                               Boot Start      End  Sectors Size Id Type
+expanded-linaro-minimal-aarch64.img1         63 44039679 44039617  21G 83 Linux
+```
+###### In this example  the start offset (in sectors) is 63 and the sector size (in bytes) is 512, giving a start offset of 63x512=*32256* bytes.
+
+###### Now mount the disk image, resize the filesystem, and copy PARSEC.
+>###### **Note**: set `/path_to_compiled_parsec-3.0_dir/`, and change `32256` to the offset in bytes calculted above
 ```bash
 $ mkdir disk_mnt
-$ name=$(sudo fdisk -l expanded-linaro-minimal-aarch64.img | tail -1 | awk -F: '{ print $1 }' | awk -F" " '{ print $1 }')
-$ start_sector=$(sudo fdisk -l expanded-linaro-minimal-aarch64.img | grep $name | awk -F" " '{ print $2 }')
-$ units=$(sudo fdisk -l expanded-linaro-minimal-aarch64.img | grep ^Units | awk -F" " '{ print $9 }')
-$ sudo mount -o loop,offset=$(($start_sector*$units)) expanded-linaro-minimal-aarch64.img disk_mnt
+$ sudo mount -o loop,offset=32256 expanded-linaro-minimal-aarch64.img disk_mnt
 $ df # find /dev/loopX for disk_mnt
 $ sudo resize2fs /dev/loopX # resize filesystem
 $ df # check that the Available space for disk_mnt is increased
@@ -276,7 +307,7 @@ We only show how to run PARSEC on the HPI model. Reading results from `stats.txt
 ##### Generate benchmark runscripts
 ```bash
 $ cd arm-gem5-rsk/parsec_rcs
-$ bash gen_rcs.sh -i simsmall -p <pkgname> -i <simsmall/simmedium/simlarge> -n <nth>
+$ bash gen_rcs.sh -p <pkgname> -i <simsmall/simmedium/simlarge> -n <nth>
 ```
 
 ##### Run `starter_fs` using the expanded image and benchmark runscript
